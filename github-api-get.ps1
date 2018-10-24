@@ -6,8 +6,8 @@ if ($path -notmatch '^https://') {
 }
 
 $base = @{
-  access_token="5017997491ed7f78d8aef439ff76d21eb22b4081"
-  'user-agent'='awf'
+  access_token=cat user-access-token.txt
+  'user-agent'="awf"
 }
 $body = $base + $fields
 
