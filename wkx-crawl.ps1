@@ -26,21 +26,25 @@ $starttimes | % {
   $per_page = 100
   $n_pages = [math]::floor(($n-1) / $per_page) + 1
 
-  write-host "Search $t0 $t1 $searchstr, returns n=$n_total entries, throttle to $n, $n_pages pages"
+  write-host "wkx-crawl: ****"
+  write-host "wkx-crawl: Search $t0 $t1 $searchstr, returns n=$n_total entries, throttle to $n, $n_pages pages"
 
-  1..$n_pages | % {
+  foreach ($page in 1..$n_pages) {
     while($true) {
-      $search = ./github-search-commits $searchstr -fields @{sort='author-date';page=$_;per_page=$per_page}
+      write-host -nonewline "wkx-crawl: page $page, "
+      $search = ./github-search-commits $searchstr -fields @{sort='author-date';page=$page;per_page=$per_page}
       $n = $search.items.count
       # break
-      if ($n -eq $per_page -or ($_ -eq $n_pages)) {
+      if (!$search.incomplete_results -and $n -eq $per_page -or ($page -eq $n_pages)) {
         #TODO Check last page too
         break
       }
-      write-error "search results $n < $per_page, -- wait and retry"
+      write-error "search results $n < $per_page, page $page, incomplete=$($search.incomplete_results) -- wait and retry"
       Start-Sleep 10
     }
-  
+    write-host "n = $($search.total_count), incomplete $($search.incomplete_results)"
+
+    write-host -nonewline "wkx-crawl: commits:"
     $afiles = $search.items | % {
       $commit = ./github-api-get $_.url
       ++$totalreq
@@ -48,18 +52,20 @@ $starttimes | % {
       $author = $commit.commit.author.email
       $date = $commit.commit.author.date
       $files | % { ./awf-new @{author=$author;date=$date;file=$_} }
+      write-host  -nonewline " $($files.count)"
       Start-Sleep $sleep_per_query
     }
+    write-host " done"
   
     $elapsed = ((get-date) - $start).TotalSeconds
     $target_time = $target_time_per_req * $totalreq
     $sleeptime= $target_time - $elapsed
   
-    write-host "page $_, n = $($search.total_count), incomp $($search.incomplete_results), totalreq $totalreq, elapsed $elapsed, target $target_time, sleep for $sleeptime"
+    write-host "wkx-crawl: totalreq $totalreq, elapsed $elapsed, target $target_time, sleep for $sleeptime"
   
-    $names = $afiles.author | Group-Object | selex name
+    $names = $afiles.author | Group-Object | select -expand name
     # write-host "names $names"
-    write-host "appending $($names.count) names to CSV $csv"
+    write-host "wkx-crawl: appending $($names.count) unique authors to CSV $csv"
     $afiles | export-csv $csv -append
   
     if ($sleeptime -gt 0) { Start-Sleep $sleeptime }
