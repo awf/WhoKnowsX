@@ -1,4 +1,8 @@
-param($csv = ".\wkx.csv", $search_date = "2018-10-23")
+param($csv = $null, $search_date = "2018-10-23")
+
+if (!$csv) {
+  $csv = "data/$search_date.csv"
+}
 
 write-host "wkx-crawl: Writing results for $search_date to CSV $csv"
 $obj = ./awf-new @{author = "na"; date = "na"; file = "na" }
@@ -10,8 +14,8 @@ $totalreq = 0
 $sleep_per_query = 0.3 # roughly 3600/5000 * 0.5
 $target_time_per_req = 1.05 * 3600 / 5000 # req/hr, aim for slightly above
 
-$batch_mins = 10   # Search in 10-minute windows
-$batch_period = 30 # every 30 mins
+$batch_mins = 5   # Search in 10-minute windows
+$batch_period = 70 # every 70 mins
 $starttimes = (0*60/$batch_period) .. (24*60/$batch_period)
 $starttimes | % {
   $t0 = $_ * $batch_period
@@ -35,7 +39,7 @@ $starttimes | % {
       $search = ./github-search-commits $searchstr -fields @{sort='author-date';page=$page;per_page=$per_page}
       $n = $search.items.count
       # break
-      if (!$search.incomplete_results -and $n -eq $per_page -or ($page -eq $n_pages)) {
+      if (!$search.incomplete_results -and $n -gt 0.98*$per_page -or ($page -eq $n_pages)) {
         #TODO Check last page too
         break
       }
@@ -51,7 +55,11 @@ $starttimes | % {
       $files = $commit.files.filename
       $author = $commit.commit.author.email
       $date = $commit.commit.author.date
-      $files | % { ./awf-new @{author=$author;date=$date;file=$_} }
+      foreach ($file in $commit.files) {
+        if ($file.status -eq 'modified') {
+         ./awf-new @{author=$author;date=$date;file=$file.filename}
+        }
+      }
       write-host  -nonewline " $($files.count)"
       Start-Sleep $sleep_per_query
     }
