@@ -10,12 +10,14 @@ $obj | export-csv $csv
 
 $start = get-date
 $totalreq = 0
+$total_commits_according_to_search = 0
 
 $sleep_per_query = 0.3 # roughly 3600/5000 * 0.5
 $target_time_per_req = 1.05 * 3600 / 5000 # req/hr, aim for slightly above
 
-$batch_mins = 5   # Search in 10-minute windows
+$batch_mins = 5   # Search in 5-minute windows
 $batch_period = 70 # every 70 mins
+$max_commits_per_batch = 500 # search api throttles at 1000, we may want less
 $starttimes = (0*60/$batch_period) .. (24*60/$batch_period)
 $starttimes | % {
   $t0 = $_ * $batch_period
@@ -25,13 +27,15 @@ $starttimes | % {
   $searchstr = "author-date:${search_date}T${t0str}..${search_date}T${t1str} merge:false"
   $search = ./github-search-commits $searchstr -fields @{page=1;per_page=10}
   $n_total = $search.total_count
-  $n = [math]::min($n_total, 1000) # search api throttles at 1000
+  $total_commits_according_to_search += $n_total
+
+  $n_commits = [math]::min($n_total, $max_commits_per_batch) 
 
   $per_page = 100
-  $n_pages = [math]::floor(($n-1) / $per_page) + 1
+  $n_pages = [math]::floor(($n_commits-1) / $per_page) + 1
 
   write-host "wkx-crawl: ****"
-  write-host "wkx-crawl: Search $t0 $t1 $searchstr, returns n=$n_total entries, throttle to $n, $n_pages pages"
+  write-host "wkx-crawl: Search $t0 $t1 $searchstr, returns n=$n_total entries, throttle to $n_commits, $n_pages pages"
 
   foreach ($page in 1..$n_pages) {
     while($true) {
@@ -50,34 +54,47 @@ $starttimes | % {
 
     write-host -nonewline "wkx-crawl: commits:"
     $afiles = $search.items | % {
+      $progressPreference = 'silentlyContinue'
       $commit = ./github-api-get $_.url
+      $progressPreference = 'Continue'
       ++$totalreq
       $files = $commit.files.filename
       $author = $commit.commit.author.email
       $date = $commit.commit.author.date
+      $modified = 0
       foreach ($file in $commit.files) {
         if ($file.status -eq 'modified') {
+         ++$modified
          ./awf-new @{author=$author;date=$date;file=$file.filename}
         }
       }
-      write-host  -nonewline " $($files.count)"
+      $msg = " $modified"
+      if ($modified -lt $files.count) {
+        $msg += "/" + $files.count
+      }
+      write-host  -nonewline $msg 
       Start-Sleep $sleep_per_query
     }
     write-host " done"
   
     $elapsed = ((get-date) - $start).TotalSeconds
     $target_time = $target_time_per_req * $totalreq
-    $sleeptime= $target_time - $elapsed
+    $sleeptime= ($target_time - $elapsed) * 1.1
   
-    write-host "wkx-crawl: totalreq $totalreq, elapsed $elapsed, target $target_time, sleep for $sleeptime"
+    write-host "wkx-crawl: totalreq $totalreq/$total_commits_according_to_search, elapsed $elapsed, target $target_time, sleep for $sleeptime"
   
     $names = $afiles.author | Group-Object | select -expand name
     # write-host "names $names"
     write-host "wkx-crawl: appending $($names.count) unique authors to CSV $csv"
     $afiles | export-csv $csv -append
-  
+    $estimated_undercount = $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period)
+    write-host "wkx-crawl: Undercount estimate $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period) = $estimated_undercount"
+
     if ($sleeptime -gt 0) { Start-Sleep $sleeptime }
   }
 }
+
+$estimated_undercount = $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period)
+write-host "wkx-crawl: Undercount estimate $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period) = $estimated_undercount"
 
 write-host "wkx-crawl: Now try wkx-make-table"
