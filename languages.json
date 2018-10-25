@@ -1155,14 +1155,6 @@
         ]
     },
     {
-        "name":"Hack",
-        "type":"programming",
-        "extensions":[
-            ".hh",
-            ".php"
-        ]
-    },
-    {
         "name":"Haml",
         "type":"markup",
         "extensions":[
@@ -1399,19 +1391,6 @@
             ".pac",
             ".sjs",
             ".ssjs",
-            ".sublime-build",
-            ".sublime-commands",
-            ".sublime-completions",
-            ".sublime-keymap",
-            ".sublime-macro",
-            ".sublime-menu",
-            ".sublime-mousemap",
-            ".sublime-project",
-            ".sublime-settings",
-            ".sublime-theme",
-            ".sublime-workspace",
-            ".sublime_metrics",
-            ".sublime_session",
             ".xsjs",
             ".xsjslib"
         ]
