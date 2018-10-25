@@ -1,4 +1,6 @@
-param($csv = "wkx.csv", $load = $true)
+param($csvs = @("wkx.csv"), 
+      $corr = 1.0,   # Overcount correction for subsamples
+      $load = $true)
 
 $languages = (cat .\languages.json |ConvertFrom-Json).languages
 $languages| ?{$_.type -eq 'programming' } | %{ 
@@ -21,14 +23,21 @@ foreach ($ext in $keys) {
   $ext2lang[$ext] = $ext2lang[$ext] -replace '/$',""
 }
 
-# foreach ($ext in $keys) {
-#   $ext2lang[$ext] = $ext2lang[$ext] -replace '/$'," [$ext]"
-# }
-
+$lang2ext = @{}
+foreach ($ext in $keys) {
+  $lang = $ext2lang[$ext]
+  if ($lang2ext[$lang]) {
+    $lang2ext[$lang] += ",$ext"
+  } else {
+    $lang2ext[$lang] = $ext
+  }
+}
 
 if ($load) {
-  write-host "wkx-make-table: loading $csv"
-  $data = Import-Csv $csv
+  $data = foreach ($csv in $csvs){ 
+    write-host "wkx-make-table: loading $csv"
+    Import-Csv $csv
+  }
 }
 
 write-host "wkx-make-table: processing"
@@ -51,7 +60,8 @@ $table = $bylang | % {
     #write-warning "wkx-make-table: Empty lang! [$_]"
   } else {
     $authors = $_.group | group author
-    ./awf-new @{lang=$lang;n_authors=$authors.Length;authors=$authors.name}
+    $n_authors = $authors.Length * $corr
+    ./awf-new @{lang=$lang;exts=$lang2ext[$lang];n_authors=$n_authors;authors=$authors.name}
   }
 } | sort n_authors
-$table[-100..-1]
+$table[-100..-1]  | ft n_authors,lang,exts,authors | out-string | write-host
