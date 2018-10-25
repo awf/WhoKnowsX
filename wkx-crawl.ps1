@@ -5,6 +5,9 @@ if (!$csv) {
 }
 
 write-host "wkx-crawl: Writing results for $search_date to CSV $csv"
+
+# ToString("yyyy/MM/ddThh:mm:ss")
+
 $obj = ./awf-new @{author = "na"; date = "na"; file = "na" }
 $obj | export-csv $csv
 
@@ -17,16 +20,21 @@ $target_time_per_req = 1.05 * 3600 / 5000 # req/hr, aim for slightly above
 
 $batch_mins = 5   # Search in 5-minute windows
 $batch_period = 70 # every 70 mins
+
 $max_commits_per_batch = 500 # search api throttles at 1000, we may want less
-$starttimes = (0*60/$batch_period) .. (24*60/$batch_period)
+$search_date_dt = [DateTime]$search_date
+$search_fmt = "yyyy-MM-ddThh:mm:ss" 
+$starttimes = 0 .. [math]::Floor(24*60/$batch_period)
+
 $starttimes | % {
-  $t0 = $_ * $batch_period
-  $t1 = $t0 + $batch_mins
-  $t0str = "{0:D2}:{1:D2}:00" -f [int][math]::floor($t0 / 60),($t0 % 60)
-  $t1str = "{0:D2}:{1:D2}:00" -f [int][math]::floor($t1 / 60),($t1 % 60)
-  $searchstr = "author-date:${search_date}T${t0str}..${search_date}T${t1str} merge:false"
+  $t0 = $search_date_dt.AddMinutes($_ * $batch_period)
+  $t1 = $t0.AddMinutes($batch_mins)
+  $t0str = $t0.ToString($search_fmt)
+  $t1str = $t1.ToString($search_fmt)
+  $searchstr = "author-date:${t0str}..${t1str} merge:false"
   $search = ./github-search-commits $searchstr -fields @{page=1;per_page=10}
   $n_total = $search.total_count
+
   $total_commits_according_to_search += $n_total
 
   $n_commits = [math]::min($n_total, $max_commits_per_batch) 
