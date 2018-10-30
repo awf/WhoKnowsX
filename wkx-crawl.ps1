@@ -19,12 +19,12 @@ $sleep_per_query = 0.3 # roughly 3600/5000 * 0.5
 $target_time_per_req = 1.05 * 3600 / 5000 # req/hr, aim for slightly above
 
 $batch_mins = 5   # Search in 5-minute windows
-$batch_period = 70 # every 70 mins
+$batch_period = 7 # every 70 mins
 
-$max_commits_per_batch = 500 # search api throttles at 1000, we may want less
+$max_commits_per_batch = 1000 # search api throttles at 1000, we may want less
 $search_date_dt = [DateTime]$search_date
-$search_fmt = "yyyy-MM-ddThh:mm:ss" 
-$starttimes = 0 .. [math]::Floor(24*60/$batch_period)
+$search_fmt = "yyyy-MM-ddTHH:mm:ss" 
+$starttimes = 0 .. [math]::Floor(24*60/$batch_period-1)
 
 $starttimes | % {
   $t0 = $search_date_dt.AddMinutes($_ * $batch_period)
@@ -104,5 +104,8 @@ $starttimes | % {
 
 $estimated_undercount = $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period)
 write-host "wkx-crawl: Undercount estimate $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period) = $estimated_undercount"
+
+echo "TotalReq $totalreq Commits $total_commits_according_to_search BatchMins $batch_mins Starts $starttimes Period $batch_period Estimated $estimated_undercount" > (($csv -replace ".csv$","") + "-counts.txt")
+
 
 write-host "wkx-crawl: Now try wkx-make-table"
