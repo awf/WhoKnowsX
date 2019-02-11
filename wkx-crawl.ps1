@@ -1,7 +1,23 @@
-param($csv = $null, $search_date = "2018-10-23")
+param($csv = $null,
+      $prefix = "data/wkx-",
+      $search_date = "2018-10-23",
+      $batch_mins = 5,   # Search in 5-minute windows
+      $batch_period = 70, # every 70 mins
+      [switch]$force = $false
+)
 
 if (!$csv) {
-  $csv = "data/$search_date.csv"
+  $csv = "$prefix$search_date.csv"
+}
+
+$countsfile = ($csv -replace ".csv$","") + "-counts.txt"
+
+# Check for countsfile, it's the last thing that is written
+if (test-path $countsfile) {
+  if (sls -Quiet TotalReq $countsfile) { 
+    write-host "Won't overwrite $csv, because $countsfile exists and contains data"
+    return
+  }
 }
 
 write-host "wkx-crawl: Writing results for $search_date to CSV $csv"
@@ -17,9 +33,6 @@ $total_commits_according_to_search = 0
 
 $sleep_per_query = 0.3 # roughly 3600/5000 * 0.5
 $target_time_per_req = 1.05 * 3600 / 5000 # req/hr, aim for slightly above
-
-$batch_mins = 5   # Search in 5-minute windows
-$batch_period = 7 # every 70 mins
 
 $max_commits_per_batch = 1000 # search api throttles at 1000, we may want less
 $search_date_dt = [DateTime]$search_date
@@ -105,7 +118,6 @@ $starttimes | % {
 $estimated_undercount = $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period)
 write-host "wkx-crawl: Undercount estimate $totalreq/$total_commits_according_to_search*$batch_mins/($starttimes.count * $batch_period) = $estimated_undercount"
 
-echo "TotalReq $totalreq Commits $total_commits_according_to_search BatchMins $batch_mins Starts $starttimes Period $batch_period Estimated $estimated_undercount" > (($csv -replace ".csv$","") + "-counts.txt")
-
+echo "TotalReq $totalreq Commits $total_commits_according_to_search BatchMins $batch_mins Starts $starttimes Period $batch_period Estimated $estimated_undercount" > $countsfile
 
 write-host "wkx-crawl: Now try wkx-make-table"
