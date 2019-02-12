@@ -8,4 +8,6 @@ And paste it into a file called user-access-token.txt in this directory
 
 Run the crawl from this directory:
 
-./wkx-crawl mydump.csv -search_date '2018-10-23'
+$dates = 1..270 | %{.\epoch-plus-days.ps1 "2017-01-01" ($_ * 3)}
+
+$dates |%{./wkx-crawl -search_date $_ }
