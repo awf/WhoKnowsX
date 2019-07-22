@@ -62,13 +62,17 @@ $starttimes | % {
     while($true) {
       write-host -nonewline "wkx-crawl: page $page, "
       $search = ./github-search-commits $searchstr -fields @{sort='author-date';page=$page;per_page=$per_page}
-      $n = $search.items.count
+      $n = [int]$search.items.count
       # break
-      if (!$search.incomplete_results -and $n -gt 0.98*$per_page -or ($page -eq $n_pages)) {
-        #TODO Check last page too
+      if ($n -gt 0.98*$per_page -or ($page -eq $n_pages)) {
+        #TODO Check last page too 
+        if ($search.incomplete_results) {
+          write-warning "incomplete results flag, but n better than 98%"
+        } 
         break
       }
-      write-error "search results $n < $per_page, page $page, incomplete=$($search.incomplete_results) -- wait and retry"
+      $search | fl
+      write-error "search results $n < 0.98*$per_page, page $page/$n_pages, incomplete=$($search.incomplete_results) -- wait and retry"
       Start-Sleep 10
     }
     write-host "n = $($search.total_count), incomplete $($search.incomplete_results)"

@@ -6,26 +6,40 @@ $nlines = $matching_lines.length
 write-host "Found $nlines records"
 $n = 0
 $ntot = 0
+$n_second_visit = 0
 $day = 0
 $new_joiner_events = $matching_lines |` 
     foreach {
         $hash = @{}
         $perday = @{}
+        $second_visit = @{}
       } {  
         ++$n
         $who = $_.who
+        $day = ./days-since-epoch $_.time
+        $day = [int]$day
         if (!$hash[$who]) {
-            $hash[$who] = 1
             ++$ntot
-            $day = ./days-since-epoch $_.time
-            $day = [int]$day
+            $hash[$who] = $day
             $perday[$day] = $ntot
         } else {
-            ++$hash[$who]
+            $lastday = $hash[$who]
+            if ($lastday -ne -1) {
+                if ($day - $lastday -gt 1) {
+                    # Second visit, on a different day
+                    $n_second_visit++
+                    $second_visit[$day] = $n_second_visit
+                    $hash[$who] = -1
+                }
+            }
         }
         write-progress "Scanning $ext, total $ntot, day $day" -percent ($n/$nlines*100)
       }
 
 $days = $perday.Keys | sort
-$ys = $days | % { $perday[$_] }
-start-job { cd $using:pwd ; .\chart.ps1 $using:days $using:ys -title $using:ext }
+$perday_by_day = $days | % { $perday[$_] }
+
+$days2 = $second_visit.Keys | sort
+$second_visit_by_day = $days2 | % { $second_visit[$_] }
+
+. ./draw-graph-chart

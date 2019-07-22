@@ -1,18 +1,28 @@
 param($xs, $ys,
-     $title = $null,
-     $legend = $null)
+      $title = $null,
+      $legend = $null,
+      $xs2 = $null,
+      $ys2 = $null)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 $Chart = New-object System.Windows.Forms.DataVisualization.Charting.Chart
 $ChartArea = New-Object System.Windows.Forms.DataVisualization.Charting.ChartArea
-$Series = New-Object -TypeName System.Windows.Forms.DataVisualization.Charting.Series
 $ChartTypes = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]
 
+$Series = New-Object -TypeName System.Windows.Forms.DataVisualization.Charting.Series
 $Series.ChartType = $ChartTypes::Line
+$Series.Points.DataBindXY($xs, $ys)
 $Chart.Series.Add($Series)
+
+if ($xs2 -and $ys2) {
+    $Series = New-Object -TypeName System.Windows.Forms.DataVisualization.Charting.Series
+    $Series.ChartType = $ChartTypes::Line
+    $Series.Points.DataBindXY($xs2, $ys2)
+    $Chart.Series.Add($Series)
+}
+
 $Chart.ChartAreas.Add($ChartArea)
 
-$Chart.Series['Series1'].Points.DataBindXY($xs, $ys)
 $Chart.Width = 700
 $Chart.Height = 400
 $Chart.Left = 10
@@ -41,6 +51,7 @@ $AnchorAll = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Fo
 $Form = New-Object Windows.Forms.Form
 $Form.Width = 740
 $Form.Height = 490
+$Form.Text = "Chart: $title"
 $Form.controls.add($Chart)
 $Chart.Anchor = $AnchorAll
 
